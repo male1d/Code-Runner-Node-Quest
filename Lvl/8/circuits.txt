@@ -1,0 +1,10 @@
+HINT 2 -2 2 -2 
+BOX 9 -3 0
+BOX 11 -3 3
+BOX 13 -4 4
+BOX 15 -3 4
+NOR 6 -3 1 2
+SRC 7 -4 1
+SRC 3 -4 1
+SRC 5 -6 1
+SRC 17 -5 0
