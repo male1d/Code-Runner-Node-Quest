@@ -8,7 +8,7 @@ using Game.Models;
 using Game.Viev;
 using Game.Utils;
 using Game.UI;
-using System.IO; // Не забудь подключить System.IO для работы с файлами
+using System.IO; 
 
     namespace Game
     {
@@ -189,7 +189,7 @@ using System.IO; // Не забудь подключить System.IO для ра
             }
         }
 
-        // В месте, где уровень завершается (например, при достижении финиша)
+        // 
         private void CompleteLevel()
             {
                 level++;
