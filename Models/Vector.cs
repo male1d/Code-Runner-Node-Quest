@@ -24,6 +24,16 @@ namespace Game.Models
             return x * x + y * y;  // Используется для сравнения расстояний без извлечения корня
         }
 
+        public float Magnitude()
+        {
+            return MathF.Sqrt(x * x + y * y);
+        }
+
+        public float SquaredMagnitude()
+        {
+            return x * x + y * y;
+        }
+
         public static Vector operator +(Vector a, Vector b) // Перегрузка оператора сложения векторов
         {
             return new Vector(a.x + b.x, a.y + b.y);

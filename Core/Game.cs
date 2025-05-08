@@ -8,130 +8,209 @@ using Game.Models;
 using Game.Viev;
 using Game.Utils;
 using Game.UI;
+using System.IO; // Не забудь подключить System.IO для работы с файлами
 
-namespace Game
-{
-    public partial class Game : Form // переменные и методы класса
+    namespace Game
     {
-        static Dictionary<Keys, bool> kb = new()
+        public partial class Game : Form // переменные и методы класса
         {
-            { Keys.W, false },
-            { Keys.A, false },
-            { Keys.D, false },
-            { Keys.E, false },
-            { Keys.G, false },
-            { Keys.M, false },
-            { Keys.Escape, false },
-            { Keys.Space, false },
-            { Keys.Up, false },
-            { Keys.Down, false },
-            { Keys.Left, false },
-            { Keys.Right, false },
-        };
-        static Dictionary<Keys, bool> shadow = new()
-        {
-            { Keys.G, false },
-            { Keys.M, false },
-            { Keys.Escape, false },
-            { Keys.Space, false },
-        };
-        static bool mouseDown = false;
-        static SolidBrush brush = new(Color.Black);
-        static Pen pen = new(Color.Black, 2);
-
-        const float friction = 0.25F; // Коэффициент трения
-        const float gravity = 1; // Гравитация
-        const float shake = size / 2; // Величина для эффекта тряски, зависит от size
-        const int tpf = 5; // Время между кадрами 
-        const int tpw = 4; // Размер окна 
-
-        public const int size = 64; // Размер блока 
-        public const string prefix = "../../../"; // Путь к ресурсам
-
-        public static Vector view = new(); // Вектор для камеры 
-        public static Stopwatch stopwatch = new(); // Таймер для измерения времени
-
-        static int level = 1; // Текущий уровень
-        static Entity player = new(new Vector(), new Vector(size / 2, size), 2, 16, "player"); // Игровой персонаж
-        static Camera cam = new(); // Камера
-        static Block?[,] grid; // 2D массив блоков уровня
-        static readonly Circuit circuitTemplate = new(); // Шаблон схемы
-        static Circuit circuit = new(); // Текущая схема
-        static Prompt prompt = new(""); // Всплывающие подсказки
-        static Vector spawn; // Точка появления игрока
-        static bool paused = false; // Пауза
-        static bool interferenceExists = false; // Есть ли помехи
-        static int lastFlipped = -1; // Последний переключатель 
-        static PauseMenu pm = new(); // Меню паузы
-        static Vector mouse = new(); // Положение мыши
-        static bool controlsLocked = false; // Блокировка управления
-        static bool graphicsOn = true; // Включение графики
-        static bool peekOn = true; // Включение режима "подглядывания"
-        static Vector artifact; // Место расположения артефакта
-        static bool playerCollectedArtifact = false; // Собрал ли игрок артефакт
-        static int artifactsCollected = 0; // Количество собранных артефактов
-        static int tutorialIndex = 0; // Индекс туториала
-        static List<List<(string hint, Func<bool> f)>> tutorial = new(); // Туториалы
-        static bool moved = false; // Передвинулся ли игрок
-        static bool nearFinish = false; // Близко ли к финишу
-        static bool end = false; // Конец уровня
-
-        static int tick = 0; // Текущий тик
-
-        static StreamWriter writer; // Для записи туториала или действий
-        static bool recording = false; // Включена ли запись
-        static List<Vector> ghost = new(); // Для хранения "призрака" (предыдущих движений)
-        static List<Hint> hints = new(); // Список подсказок
-
-        public Game()
-        {
-            InitializeComponent(); // Инициализация компонентов формы
-
-            MouseWheel += OnMouseWheel; // Обработчик прокрутки колесика мыши
-
-            // Настройки рисования
-            pen.Alignment = PenAlignment.Inset;
-            pen.StartCap = LineCap.Round;
-            pen.EndCap = LineCap.Round;
-
-            // Настройки полноэкранного режима
-            canvas.Dock = DockStyle.Fill; // Заполнение всей формы
-            AdjustView(); // Настройка вида камеры
-
-            // Загрузка ассетов
-            player.GetFrames(); // Получение кадров анимации игрока
-
-            // Загрузка уровня
-            LoadLevel();
-            Reset();
-
-            // Работа с призраком
-            string ghostPath = $"{prefix}/lvl/{level}/ghost.txt";
-
-            if (recording)
+            static Dictionary<Keys, bool> kb = new()
             {
-                File.WriteAllText(ghostPath, string.Empty); // Очистка файла
-                writer = new(ghostPath); // Открытие для записи
+                { Keys.W, false },
+                { Keys.A, false },
+                { Keys.D, false },
+                { Keys.E, false },
+                { Keys.G, false },
+                { Keys.M, false },
+                { Keys.Escape, false },
+                { Keys.Space, false },
+                { Keys.Up, false },
+                { Keys.Down, false },
+                { Keys.Left, false },
+                { Keys.Right, false },
+            };
+            static Dictionary<Keys, bool> shadow = new()
+            {
+                { Keys.G, false },
+                { Keys.M, false },
+                { Keys.Escape, false },
+                { Keys.Space, false },
+            };
+            static bool mouseDown = false;
+            static SolidBrush brush = new(Color.Black);
+            static Pen pen = new(Color.Black, 2);
+
+            //const float friction = 0.25F; // Коэффициент трения
+            //const float gravity = 1; // Гравитация
+
+            float friction; // Коэффициент трения
+            float gravity; // Гравитация
+
+            // Диапазоны для рандома
+            float frictionMin = 0.25f;
+            float frictionMax = 0.25f;
+
+            float gravityMin = 0.8f;
+            float gravityMax = 1f;
+
+
+            const float shake = size / 2; // Величина для эффекта тряски, зависит от size
+            const int tpf = 5; // Время между кадрами 
+            const int tpw = 4; // Размер окна 
+
+            public const int size = 64; // Размер блока 
+            public const string prefix = "../../../"; // Путь к ресурсам
+
+            public static Vector view = new(); // Вектор для камеры 
+            public static Stopwatch stopwatch = new(); // Таймер для измерения времени
+
+            static int level = 1; // Текущий уровень
+            static Entity player = new(new Vector(), new Vector(size / 2, size), 2, 16, "player"); // Игровой персонаж
+            static Camera cam = new(); // Камера
+            static Block?[,] grid; // 2D массив блоков уровня
+            static readonly Circuit circuitTemplate = new(); // Шаблон схемы
+            static Circuit circuit = new(); // Текущая схема
+            static Prompt prompt = new(""); // Всплывающие подсказки
+            static Vector spawn; // Точка появления игрока
+            static bool paused = false; // Пауза
+            static bool interferenceExists = false; // Есть ли помехи
+            static int lastFlipped = -1; // Последний переключатель 
+            static PauseMenu pm = new(); // Меню паузы
+            static Vector mouse = new(); // Положение мыши
+            static bool controlsLocked = false; // Блокировка управления
+            static bool graphicsOn = true; // Включение графики
+            static bool peekOn = true; // Включение режима "подглядывания"
+            static Vector artifact; // Место расположения артефакта
+            static bool playerCollectedArtifact = false; // Собрал ли игрок артефакт
+            static int artifactsCollected = 0; // Количество собранных артефактов
+            static int tutorialIndex = 0; // Индекс туториала
+            static List<List<(string hint, Func<bool> f)>> tutorial = new(); // Туториалы
+            static bool moved = false; // Передв игрок
+            static bool nearFinish = false; // Близко ли инулся лик финишу
+            static bool end = false; // Конец уровня
+
+            static int tick = 0; // Текущий тик
+
+            static StreamWriter writer; // Для записи туториала или действий
+            static bool recording = false; // Включена ли запись
+            static List<Vector> ghost = new(); // Для хранения "призрака" (предыдущих движений)
+            static List<Hint> hints = new(); // Список подсказок
+
+                public Game()
+                {
+
+                LoadProgress();
+                InitializeComponent(); // Инициализация компонентов формы
+
+                MouseWheel += OnMouseWheel; // Обработчик прокрутки колесика мыши
+
+                // Настройки рисования
+                pen.Alignment = PenAlignment.Inset;
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+
+                // Настройки полноэкранного режима
+                canvas.Dock = DockStyle.Fill; // Заполнение всей формы
+                AdjustView(); // Настройка вида камеры
+
+                // Загрузка ассетов
+                player.GetFrames(); // Получение кадров анимации игрока
+
+                // Загрузка уровня
+                LoadLevel();
+                Reset();
+
+                // Работа с призраком
+                string ghostPath = $"{prefix}/lvl/{level}/ghost.txt";
+
+                if (recording)
+                {
+                    File.WriteAllText(ghostPath, string.Empty); // Очистка файла
+                    writer = new(ghostPath); // Открытие для записи
+                }
+
+                // загрузка призрака
+                if (!recording && level == 0)
+                {
+                    string[] lines = File.ReadAllLines(ghostPath);
+                    foreach (var line in lines)
+                    {
+                        string[] positions = line.Split(' ');
+                        ghost.Add(new(int.Parse(positions[0]), int.Parse(positions[1])));
+                    }
+                }
+
+                // Загрузка прогресса
+                LoadProgress();
             }
 
-            // загрузка призрака
-            if (!recording && level == 0)
+        private void LoadProgress()
+        {
+            try
             {
-                string[] lines = File.ReadAllLines(ghostPath);
-                foreach (var line in lines)
+                string path = $"{prefix}/save.txt";
+                if (File.Exists(path))
                 {
-                    string[] positions = line.Split(' ');
-                    ghost.Add(new(int.Parse(positions[0]), int.Parse(positions[1])));
+                    string content = File.ReadAllText(path);
+                    string[] parts = content.Split(',');
+                    if (parts.Length >= 2)
+                    {
+                        if (int.TryParse(parts[0], out int savedLevel))
+                        {
+                            level = savedLevel;
+                        }
+                        if (int.TryParse(parts[1], out int savedArtifacts))
+                        {
+                            artifactsCollected = savedArtifacts;
+                        }
+                    }
                 }
             }
+            catch
+            {
+                // Если что-то пошло не так, оставляем значения по умолчанию
+                level = 1;
+                artifactsCollected = 0;
+            }
         }
+
+        private void SaveProgress()
+        {
+            try
+            {
+                string path = $"{prefix}/save.txt";
+                // Записываем уровень и артефакты через запятую
+                string saveData = $"{level},{artifactsCollected}";
+                File.WriteAllText(path, saveData);
+            }
+            catch
+            {
+                // Обработка ошибок
+            }
+        }
+
+        // В месте, где уровень завершается (например, при достижении финиша)
+        private void CompleteLevel()
+            {
+                level++;
+                SaveProgress();
+                LoadLevel(); // Загружаем следующий уровень
+                Reset();
+            }
 
         private void LoadLevel()
         {
             try
             {
                 var rows = File.ReadLines($"{prefix}/lvl/{level}/world.txt").ToArray(); // Чтение строк уровня
-                grid = new Block?[rows[0].Length, rows.Length]; // Создание массива блоков по размеру уровня                                          
+                grid = new Block?[rows[0].Length, rows.Length]; // Создание массива блоков по размеру уровня
+                Random rand = new Random(); // Создаем генератор случайных чисел
+
+                // Внутри метода инициализации уровня
+                friction = (float)(rand.NextDouble() * (frictionMax - frictionMin) + frictionMin);
+                gravity = (float)(rand.NextDouble() * (gravityMax - gravityMin) + gravityMin);
+
+
                 for (int i = 0; i < grid.GetLength(0); i++) // Инициализация массива
                 {
                     for (int j = 0; j < grid.GetLength(1); j++)
@@ -453,6 +532,7 @@ namespace Game
                 level++;
                 playerCollectedArtifact = false;
                 artifact = null;
+                SaveProgress();
                 LoadLevel();
                 Reset();
             }
@@ -548,6 +628,7 @@ namespace Game
             {
                 playerCollectedArtifact = true;
                 artifactsCollected++;
+                SaveProgress(); // Обновляем файл
             }
 
             (int x, int y) = GetIndex(player.pos);
@@ -902,9 +983,9 @@ namespace Game
                 int z = 4;
                 Font font = new(pm.ff, pm.font.Size * 4 / z);
                 Vector pos = Offset(new(size * 16, -size / 2), z);
-                e.Graphics.DrawString($"{artifactsCollected} / {level}\nartifacts", font, brush, pos.x, pos.y, new() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+                e.Graphics.DrawString($"{artifactsCollected} / {level}\nАртефакты", font, brush, pos.x, pos.y, new() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
                 pos = Offset(new(size * -16, -size / 2), z);
-                e.Graphics.DrawString($"{stopwatch.ElapsedMilliseconds}\nmilliseconds", font, brush, pos.x, pos.y, new() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+                e.Graphics.DrawString($"{stopwatch.ElapsedMilliseconds}\nМиллисекунды", font, brush, pos.x, pos.y, new() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
             }
 
             DrawWorld(e.Graphics);
@@ -912,15 +993,10 @@ namespace Game
 
             prompt.Show(e.Graphics, Offset(player.pos - new Vector(0, player.dim.y / 2)));
 
-            if (tutorialIndex < tutorial[level].Count)
             {
-                prompt.text = tutorial[level][tutorialIndex].hint;
-                if (tutorial[level][tutorialIndex].f())
                 {
                     tutorialIndex++;
                 }
-            }
-            else
             {
                 prompt.text = Pressed(Keys.E) ? $"artifacts: {artifactsCollected}" : "";
                 prompt.brush.Color = Prompt.defaultColor;
@@ -929,6 +1005,7 @@ namespace Game
             pm.DrawTimer(e.Graphics, stopwatch);
 
             if (paused) ShowPauseMenu(e.Graphics);
+        }
         }
 
         private void AdjustView()
